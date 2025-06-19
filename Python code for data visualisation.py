@@ -114,7 +114,7 @@ if __name__ == "__main__":
                 # If this is the first data, set up channels
                 if num_channels == 0:
                     num_channels = len(values)
-                    num_channels = 6
+                    # num_channels = 10
 
                 # If we haven't set up the plot lines yet, do it now
                 if not lines:

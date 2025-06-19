@@ -94,12 +94,13 @@ if __name__ == "__main__":
     data_filtered = []
     finger_cal = []
     buffer_size = 2000  # keep up to 100 data points
-    filterWindow = 10
+    filterWindow = 70
     calibrate_wait = 5 #seconds to measure each finger
     fingers = [1,2,3] # using channel 6,7,8,.. respectively
-    angles = [0,45,90,110] # angles to put fingers in
+    angles = [0,110] # angles to put fingers in
     file_name = "Glove_cal.npy"
     show_raw_plt = False
+    show_Pressure = True
     
     # Try to find finger/angle calibrations. If none ask to make them
     try:
@@ -118,12 +119,17 @@ if __name__ == "__main__":
     # Set up real-time plot
     # --------------------
     plt.ion()
-    fig, ax = plt.subplots(figsize=(12, 6))
+    if show_raw_plt:
+        fig, ax = plt.subplots(figsize=(12, 6))
     fig2, ax2 = plt.subplots(figsize=(12,6))
+    if show_Pressure:
+        fig1, ax1 = plt.subplots(figsize=(6,3))
+    
 
     # We’ll initialize lines once we know the number of channels
     lines = []
     lines2 = []
+    bars = []
     num_channels = 0
 
     # Track whether we have written the CSV header yet
@@ -144,24 +150,33 @@ if __name__ == "__main__":
                     num_channels = 10
 
                 # If we haven't set up the plot lines yet, do it now
-                if not lines or not lines2:
+                if (not lines and show_raw_plt) or not lines2:
                     for i in range(num_channels):
-                        line, = ax.plot([], [], label=f'Channel {i+1}')
+                        if show_raw_plt:
+                            line, = ax.plot([], [], label=f'Channel {i+1}')
+                            lines.append(line)
+                        
                         line2, = ax2.plot([], [], label=f'Channel {i+1}')
-
-                        lines.append(line)
                         lines2.append(line2)
+                    if show_Pressure:
+                        for j in fingers:
+                            bars = ax1.bar(fingers, [0]*len(fingers)) 
+                    if show_raw_plt:
+                        ax.set_xlabel('Time (s)')
+                        ax.set_ylabel('ADC Value')
+                        ax.set_title('Real-time ADC Data')
+                        ax.legend(loc = 'upper left')
+                    
+                    if show_Pressure:
+                        ax1.set_title('Pressure Sensors')
+                        ax1.set_ylabel('Relavive pressure')
+                        ax1.set_xticks(fingers)
+                        ax1.set_xticklabels([f"Finger {f}" for f in fingers])
+                        
 
-                    ax.set_xlabel('Time (s)')
-                    ax2.set_xlabel('Time (s)')
-
-                    ax.set_ylabel('ADC Value')
+                    ax2.set_xlabel('Time (s)')                   
                     ax2.set_ylabel('Angle (degrees)')
-
-                    ax.set_title('Real-time ADC Data')
                     ax2.set_title('Real-time Angle Data')
-
-                    ax.legend(loc = 'upper left')
                     ax2.legend(loc = 'upper left')
 
 
@@ -193,7 +208,7 @@ if __name__ == "__main__":
                     writer.writerow([timestamp] + values)
 
             # Update the plot if we have data
-            if data_filtered and (lines or lines2):
+            if data_filtered and (lines or lines2 or bars):
                 # Generate array of times in seconds relative to the first timestamp
                 times = [(dp[0] - first_timestamp).total_seconds() for dp in data_buffer]
 
@@ -209,20 +224,37 @@ if __name__ == "__main__":
                         angle_vals = np.array(finger_vals)*finger_cal[i][0] + finger_cal[i][1]
                         lines2[i].set_data(times, angle_vals)
 
-                ax.relim()
+                if show_Pressure:
+                    for i in range(len(fingers)):
+                        bar_vals = [row[i] for row in data_filtered]
+                        bars[i].set_height(bar_vals[-1])
+
+                if show_raw_plt:
+                    ax.relim()
+                    ax.autoscale_view()
+                if show_Pressure:
+                    ax1.relim()
+                    ax1.autoscale_view()
+
+
+
                 ax2.relim()
-                ax.autoscale_view()
                 ax2.autoscale_view()
 
             # Redraw the figure
-            fig.canvas.draw()
+            if show_raw_plt:
+                fig.canvas.draw()
+                fig.canvas.flush_events()
+            if show_Pressure:
+                fig1.canvas.draw()
+                fig1.canvas.flush_events()
+
             fig2.canvas.draw()
-            fig.canvas.flush_events()
             fig2.canvas.flush_events()
 
 
             # If the figure is closed, break
-            if not plt.fignum_exists(fig.number):
+            if not plt.fignum_exists(fig2.number):
                 break
 
             # Short pause to avoid maxing out CPU
@@ -237,5 +269,5 @@ if __name__ == "__main__":
         ble_thread.join()
 
         # Clean up the plot
-        plt.close(fig)
+        plt.close(fig2)
         print("Done.")
