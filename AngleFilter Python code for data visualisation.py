@@ -21,32 +21,26 @@ stop_event = threading.Event()
 # Name for CSV file
 csv_filename = f'adc_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
 
-# def RunningMedian(x,N):
-#     idx = np.arange(N) + np.arange(len(x)-N+1)[:,None]
-#     b = [row[row>0] for row in x[idx]]
-#     return np.array(map(np.median,b))
+# Global variable to store the last accepted timestamp
+last_accepted_time = 0
+desired_rate = 60  # packets per second
+min_interval = 1.0 / desired_rate
 
 def notification_handler(sender, data):
-    """
-    This callback executes in Bleak's event loop (the separate thread).
-    It parses data and places it into the queue. The main thread will
-    handle CSV-writing and plotting.
-    """
-    # Assume the data is a comma-separated string, e.g. "-1.00, 2.50, 3.00, ..."
+    global last_accepted_time
+    now = time.perf_counter()  # high-resolution timer
+    if (now - last_accepted_time) < min_interval:
+        return  # skip this packet
+    last_accepted_time = now
+
     decoded_data = data.decode().split(',')
     timestamp = datetime.now()
-
     try:
-        # Parse each value as a float
         values = [float(x) for x in decoded_data]
     except ValueError as e:
-        # If there's any invalid float, skip and log the error
         print(f"Skipping invalid data: {decoded_data}, error: {e}")
         return
-
-    # Put data (timestamp + values) into the queue for the main thread
     data_queue.put((timestamp, values))
-
 
 async def bleak_main():
     """
@@ -93,8 +87,8 @@ if __name__ == "__main__":
     data_buffer = []
     data_filtered = []
     finger_cal = []
-    buffer_size = 2000  # keep up to 100 data points
-    filterWindow = 70
+    buffer_size = 1000  # keep up to 100 data points
+    filterWindow = 10
     calibrate_wait = 5 #seconds to measure each finger
     fingers = [1,2,3] # using channel 6,7,8,.. respectively
     angles = [0,110] # angles to put fingers in
@@ -104,13 +98,14 @@ if __name__ == "__main__":
     
     # Try to find finger/angle calibrations. If none ask to make them
     try:
-        finger_cal = np.load('glove_cal.npy') # Finger_cal[finger][coef,intercept]
+        finger_cal = np.load(file_name) # Finger_cal[finger][coef,intercept]
     except FileNotFoundError:
         print('Seems like you havn\'t calibrated \n Would you like to do so now?')
         usrInput = input('[Y]es/[n]o \n')
         if usrInput.lower() in ['y', 'yes']:
             asyncio.run(glove_calibrate(calibrate_wait, fingers, angles,file_name))
             finger_cal = np.load(file_name)
+    time.sleep(2)
     # Start the BLE thread
     ble_thread = threading.Thread(target=run_bleak_loop, daemon=True)
     ble_thread.start()
@@ -147,7 +142,6 @@ if __name__ == "__main__":
                 # If this is the first data, set up channels
                 if num_channels == 0:
                     num_channels = len(values)
-                    num_channels = 10
 
                 # If we haven't set up the plot lines yet, do it now
                 if (not lines and show_raw_plt) or not lines2:
@@ -194,8 +188,8 @@ if __name__ == "__main__":
                 
                 filter_value = np.mean([x[1] for x in data_buffer[-filterWindow:]] + [values],0).tolist()
 
+                
                 data_buffer.append((timestamp, values))
-                # data_filtered.append((timestamp, filter_value))
                 data_filtered = data_filtered + [filter_value]
 
                 if len(data_buffer) > buffer_size:
@@ -220,14 +214,17 @@ if __name__ == "__main__":
 
                 if finger_cal.any():
                     for i in range(len(fingers)):
-                        finger_vals = [row[5+i] for row in data_filtered]
+                        finger_vals = [row[i] for row in data_filtered]
                         angle_vals = np.array(finger_vals)*finger_cal[i][0] + finger_cal[i][1]
                         lines2[i].set_data(times, angle_vals)
 
                 if show_Pressure:
                     for i in range(len(fingers)):
-                        bar_vals = [row[i] for row in data_filtered]
-                        bars[i].set_height(bar_vals[-1])
+                        bar_vals = [row[3+i] for row in data_filtered]
+                        if bar_vals[-1] < 0:
+                            bars[i].set_height(0)
+                        else:
+                            bars[i].set_height(1)
 
                 if show_raw_plt:
                     ax.relim()
