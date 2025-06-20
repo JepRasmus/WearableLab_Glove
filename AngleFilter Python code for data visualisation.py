@@ -6,6 +6,7 @@ import csv
 from  Glove_calibration import *
 import numpy as np
 from datetime import datetime
+from scipy.signal import firwin, lfilter
 
 import matplotlib.pyplot as plt
 from bleak import BleakScanner, BleakClient
@@ -23,8 +24,28 @@ csv_filename = f'adc_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
 
 # Global variable to store the last accepted timestamp
 last_accepted_time = 0
-desired_rate = 60  # packets per second
+desired_rate = 15  # packets per second
 min_interval = 1.0 / desired_rate
+
+# Parameters for your filter
+sampling_rate = 15    # in Hz (based on your effective data rate after downsampling)
+lowcut = 0.5            # Hz
+highcut = 6.0           # Hz
+numtaps = 21          # number of coefficients; more taps = sharper filter
+zi = np.zeros(numtaps - 1)
+
+# Design the filter
+fir_coeffs = firwin(
+    numtaps,
+    [lowcut, highcut],
+    pass_zero=False,
+    fs=sampling_rate,
+)
+
+def bandpass_filter(new_data):
+    global zi
+    filtered, zi = lfilter(fir_coeffs, 1.0, [new_data], zi=zi)
+    return filtered[0]
 
 def notification_handler(sender, data):
     global last_accepted_time
@@ -50,7 +71,7 @@ async def bleak_main():
     """
     print("Scanning for BLE devices...")
     devices = await BleakScanner.discover()
-    device = next((d for d in devices if d.name and "jeppe is 2 cool" in d.name.lower()), None)
+    device = next((d for d in devices if d.name and "jeppe is cool" in d.name.lower()), None)
     #jeppe is cool
 
     if not device:
@@ -186,11 +207,14 @@ if __name__ == "__main__":
                 if first_timestamp is None:
                     first_timestamp = timestamp
                 
-                filter_value = np.mean([x[1] for x in data_buffer[-filterWindow:]] + [values],0).tolist()
+                # filter_value = np.mean([x[1] for x in data_buffer[-filterWindow:]] + [values],0).tolist()
+                
 
                 
                 data_buffer.append((timestamp, values))
-                data_filtered = data_filtered + [filter_value]
+
+                filtered_values = [bandpass_filter(ch) for ch in values]
+                data_filtered = data_filtered + [filtered_values]
 
                 if len(data_buffer) > buffer_size:
                     data_buffer.pop(0)

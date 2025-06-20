@@ -50,7 +50,7 @@ async def bleak_main():
     """
     print("Scanning for BLE devices...")
     devices = await BleakScanner.discover()
-    device = next((d for d in devices if d.name and "jeppe is 2 cool" in d.name.lower()), None)
+    device = next((d for d in devices if d.name and "jeppe is cool" in d.name.lower()), None)
 
     if not device:
         print("Device not found. Exiting BLE thread.")
