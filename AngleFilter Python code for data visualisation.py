@@ -95,6 +95,7 @@ if __name__ == "__main__":
     file_name = "Glove_cal.npy"
     show_raw_plt = False
     show_Pressure = True
+    press_cut_pct = 0.05 # percentage of change resulting in touch sensing
     
     # Try to find finger/angle calibrations. If none ask to make them
     try:
@@ -221,10 +222,13 @@ if __name__ == "__main__":
                 if show_Pressure:
                     for i in range(len(fingers)):
                         bar_vals = [row[3+i] for row in data_filtered]
-                        if bar_vals[-1] < 0:
+
+                        if bar_vals[-1] < 0 or bar_vals[-1]>900000 or (bar_vals[-2]-bar_vals[-1])/bar_vals[-2] < -press_cut_pct:
                             bars[i].set_height(0)
-                        else:
+                        elif (bar_vals[-2]-bar_vals[-1])/bar_vals[-2] > press_cut_pct:
                             bars[i].set_height(1)
+                        else:
+                            continue
 
                 if show_raw_plt:
                     ax.relim()
