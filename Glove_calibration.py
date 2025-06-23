@@ -122,6 +122,7 @@ async def glove_calibrate(duration_seconds: float, fingers: list, angles: list, 
 
         # Save calibration
         np.save(file_name, finger_cal)
+        np.save('Finger_angle', fingerAngle)
         print("Calibration saved!")
 
     return finger_cal

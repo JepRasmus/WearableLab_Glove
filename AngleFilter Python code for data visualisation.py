@@ -91,7 +91,7 @@ if __name__ == "__main__":
     filterWindow = 10
     calibrate_wait = 5 #seconds to measure each finger
     fingers = [1,2,3] # using channel 6,7,8,.. respectively
-    angles = [0,110] # angles to put fingers in
+    angles = [0,45,90,110] # angles to put fingers in
     file_name = "Glove_cal.npy"
     show_raw_plt = False
     show_Pressure = True
@@ -217,18 +217,26 @@ if __name__ == "__main__":
                     for i in range(len(fingers)):
                         finger_vals = [row[i] for row in data_filtered]
                         angle_vals = np.array(finger_vals)*finger_cal[i][0] + finger_cal[i][1]
+                        angle_vals[angle_vals<=0] = 0
+                        angle_vals[angle_vals>=110] = 110
                         lines2[i].set_data(times, angle_vals)
 
                 if show_Pressure:
                     for i in range(len(fingers)):
                         bar_vals = [row[3+i] for row in data_filtered]
 
-                        if bar_vals[-1] < 0 or bar_vals[-1]>900000 or (bar_vals[-2]-bar_vals[-1])/bar_vals[-2] < -press_cut_pct:
+                        if bar_vals[-1] < 0 or bar_vals[-1] > 900000:
                             bars[i].set_height(0)
-                        elif (bar_vals[-2]-bar_vals[-1])/bar_vals[-2] > press_cut_pct:
-                            bars[i].set_height(1)
                         else:
-                            continue
+                            bars[i].set_height(1)
+
+                        #     bars[i].set_height(0)
+                        # if bar_vals[-1] < 0 or bar_vals[-1]>900000 or (bar_vals[-2]-bar_vals[-1])/bar_vals[-2] < -press_cut_pct:
+                        #     bars[i].set_height(0)
+                        # elif (bar_vals[-2]-bar_vals[-1])/bar_vals[-2] > press_cut_pct:
+                        #     bars[i].set_height(1)
+                        # else:
+                        #     continue
 
                 if show_raw_plt:
                     ax.relim()
